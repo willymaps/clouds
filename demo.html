@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Clouds</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.1.1/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.1.1/mapbox-gl.css" rel="stylesheet" />
+<style>
+body { margin: 0; padding: 0; }
+#cloudMap { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="cloudMap"></div>
+<script>
+let initLoad = true;
+let rectCollection = turf.featureCollection([]);
+const maxBounds = [[-116.6447639465332,34.20995668462769], [-116.4993667602539,34.28119097651876]];
+
+mapboxgl.accessToken = 'YOUR.MAPBOX.TOKEN';
+const map = new mapboxgl.Map({
+    container: 'cloudMap',
+    zoom: 13,
+    center: [-116.5715503692627, 34.24607801891129],
+    pitch: 0,
+    bearing: 0,
+    style: 'mapbox://styles/mapbox/empty-v9',
+    minZoom: 13,
+    maxBounds: maxBounds
+});
+
+map.scrollZoom.disable();
+map.touchZoomRotate.disableRotation();
+map.addControl(new mapboxgl.NavigationControl());
+
+map.on('load', function () {
+    setInterval(buildClouds, 60);
+});
+
+function buildClouds() {
+    
+    let line = turf.lineString([[-116.55292510986327,34.25381122162007],[-116.55275344848633,34.23958583679526]])
+    let lineDistance = turf.lineDistance(line);
+
+    let cloudNum = getRandom(1,25);
+    let rects = parseInt(lineDistance*cloudNum);
+    let segments = lineDistance / rects;
+
+    for(let i = 0; i <= rects; i++) {
+        let pointOnLine = turf.along(line, (segments * i));
+        rectCollection.features.push(pointOnLine);
+
+        if (rectCollection.features.length >= 4000) {
+            rectCollection.features.shift();
+        }
+
+        if (i === rects-1) {
+            randomClouds(rectCollection, rects);
+            updateClouds(rectCollection);
+        }
+    }
+    
+}
+
+function updateClouds(rects) {
+    if (initLoad) {
+        addLayers(rects);
+        initLoad = false;
+    } else {
+        map.getSource('cloud-source').setData(rects);
+    }
+}
+
+function addLayers(rects) {
+
+    const circlePaint = {
+        'circle-radius': ['get', 'size'],
+        'circle-color': '#000000',
+        'circle-opacity': 0.03,
+        'circle-blur': 0.4
+    }
+
+    map.addSource('cloud-source', {
+        'type': 'geojson',
+        'data': rects
+    });
+
+    map.addLayer({
+        'id': 'cloud-layer',
+        'type': 'circle',
+        'source': 'cloud-source',
+        'paint': circlePaint
+    });
+
+}
+
+function getRandom(min, max) {
+    let maximum = max;
+    let minimum = min;
+    let randomNum = Math.floor(Math.random() * (maximum - minimum + 1)) + minimum;
+    return randomNum;
+}
+
+function randomClouds(rect, count) {
+    let newClouds = 0;
+    if (rect.features.length != count) {
+        newClouds =  rect.features.length-count;
+    }
+
+    turf.featureEach(rect, function (currentFeature, featureIndex) {
+      let randomNum = getRandom(1,15);
+      let randomDist = getRandom(1,20);
+      if (featureIndex>=newClouds-1) {
+        currentFeature.properties = {size: randomNum};
+      }
+      
+      currentFeature.geometry.coordinates[0] = currentFeature.geometry.coordinates[0]-randomDist/50000;
+      if (randomNum % 2) {
+        currentFeature.geometry.coordinates[1] = currentFeature.geometry.coordinates[1]-randomDist/100000;  
+      } else {
+        currentFeature.geometry.coordinates[1] = currentFeature.geometry.coordinates[1]+randomDist/100000; 
+      }
+    });
+}
+
+</script>
+</body>
+</html>
